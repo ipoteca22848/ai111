@@ -7,3 +7,5 @@ dist/
 *.db
 *.db-wal
 *.db-shm
+assets/model/
+.huggingface/

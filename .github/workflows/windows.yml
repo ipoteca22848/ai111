@@ -1,44 +1,82 @@
-name: Windows EXE
+name: StreamForge Windows EXE
 on:
   push:
-    tags: ['v*']
+    tags: ['v1.*']
   workflow_dispatch:
 permissions:
   contents: write
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Install
+      - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
-      - name: Test
+      - name: Bundle official multilingual Whisper model
+        run: python tools/prepare_model.py
+      - name: Test real processing and GUI
         run: python -m pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
+      - name: Generate real spoken English integration sample
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force build | Out-Null
+          Add-Type -AssemblyName System.Speech
+          $voice = New-Object System.Speech.Synthesis.SpeechSynthesizer
+          $voice.Rate = -1
+          $voice.SetOutputToWaveFile("$pwd/build/speech.wav")
+          $voice.Speak("Hello. This is a real video stream. Welcome to Stream Forge Studio. We turn a long video into short clips.")
+          $voice.Dispose()
+      - name: Verify speech recognition and end-to-end source pipeline
+        run: python main.py --self-test build/source-selftest build/speech.wav
       - name: Build standalone Windows executable
-        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIClipStudio --add-data "assets;assets" main.py
-      - name: Smoke test packaged application
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name StreamForgeStudio --add-data "assets;assets" --collect-all faster_whisper --collect-all ctranslate2 --collect-all tokenizers --collect-all av --collect-all onnxruntime --collect-all imageio_ffmpeg --collect-all yt_dlp --copy-metadata imageio-ffmpeg --copy-metadata yt-dlp --copy-metadata faster-whisper main.py
+      - name: Verify FFmpeg, Whisper and export inside the EXE
+        shell: pwsh
+        run: |
+          $env:STREAMFORGE_DATA_DIR = "$env:RUNNER_TEMP/streamforge-selftest-data"
+          $arguments = @("--self-test", "$pwd/build/exe-selftest", "$pwd/build/speech.wav")
+          $process = Start-Process dist/StreamForgeStudio.exe -ArgumentList $arguments -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            Get-Content "$env:STREAMFORGE_DATA_DIR/studio.log" -ErrorAction SilentlyContinue
+            throw "Packaged processing test failed: $($process.ExitCode)"
+          }
+          $result = Get-Content build/exe-selftest/result.json | ConvertFrom-Json
+          if (!$result.ok -or !$result.speech_verified) { throw "Incomplete packaged self-test" }
+      - name: Verify packaged GUI startup
         shell: pwsh
         run: |
           $env:QT_QPA_PLATFORM = "offscreen"
-          $env:AICLIP_DATA_DIR = "$env:RUNNER_TEMP/clip-studio-smoke"
-          $app = Start-Process dist/AIClipStudio.exe -PassThru
-          Start-Sleep -Seconds 20
-          if ($app.HasExited) { throw "Packaged app exited unexpectedly: $($app.ExitCode)" }
-          if (!(Test-Path "$env:AICLIP_DATA_DIR/studio.db")) { Stop-Process -Id $app.Id; throw "Database was not initialized" }
+          $env:STREAMFORGE_DATA_DIR = "$env:RUNNER_TEMP/streamforge-gui"
+          $app = Start-Process dist/StreamForgeStudio.exe -PassThru
+          Start-Sleep -Seconds 25
+          if ($app.HasExited) {
+            Get-Content "$env:STREAMFORGE_DATA_DIR/studio.log" -ErrorAction SilentlyContinue
+            throw "Packaged GUI exited unexpectedly: $($app.ExitCode)"
+          }
+          if (!(Test-Path "$env:STREAMFORGE_DATA_DIR/streamforge.db")) { Stop-Process -Id $app.Id; throw "Database was not initialized" }
           Stop-Process -Id $app.Id
+      - name: Create checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist/StreamForgeStudio.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  StreamForgeStudio.exe" | Set-Content dist/StreamForgeStudio.exe.sha256 -Encoding ascii
       - uses: actions/upload-artifact@v4
         with:
-          name: AIClipStudio-Windows
-          path: dist/AIClipStudio.exe
+          name: StreamForgeStudio-Windows
+          path: |
+            dist/StreamForgeStudio.exe
+            dist/StreamForgeStudio.exe.sha256
+            build/exe-selftest/result.json
       - name: Publish tagged build
         if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" dist/AIClipStudio.exe --title "AI Clip Studio ${{ github.ref_name }} — Stage 1" --notes "Windows 10/11 x64. Stage 1: project library, SQLite, dashboard, file import. AI analysis and clip export are not implemented yet. Unsigned executable. See README for details."
+          gh release create "${{ github.ref_name }}" dist/StreamForgeStudio.exe dist/StreamForgeStudio.exe.sha256 --title "StreamForge Studio ${{ github.ref_name }}" --notes "Replacement for the old AI Clip Studio prototype. Windows x64 standalone EXE with bundled multilingual Whisper Tiny and FFmpeg. Real highlight ranking, vertical MP4 clips, karaoke captions and partner banners. Offline processing of local video; online imports depend on platform availability. Source, processing, speech recognition and packaged GUI checked in CI. No earnings or view guarantees."

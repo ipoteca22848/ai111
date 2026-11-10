@@ -1,33 +1,39 @@
 import logging
-from pathlib import Path
 import sys
-from PySide6.QtWidgets import QApplication, QMessageBox
-from config.settings import APP_NAME, data_directory
-from database.manager import Database
-from ui.main_window import MainWindow
+from pathlib import Path
 
 
 def main() -> int:
-    data_dir = data_directory()
-    logging.basicConfig(filename=data_dir / "studio.log", level=logging.INFO,
+    from streamforge.config import APP_NAME, data_dir, resources
+    directory = data_dir()
+    logging.basicConfig(filename=directory / "studio.log", level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s", encoding="utf-8")
+    # Headless packaged integration test exercises bundled FFmpeg, model and render pipeline.
+    if len(sys.argv) > 1 and sys.argv[1] == "--self-test":
+        from streamforge.selftest import run
+        try:
+            run(Path(sys.argv[2]), Path(sys.argv[3]) if len(sys.argv) > 3 else None)
+            return 0
+        except Exception:
+            logging.exception("Packaged self-test failed")
+            return 1
+    from PySide6.QtCore import QLockFile
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    from streamforge.window import StudioWindow
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
-    # Prevent two GUI processes from concurrently managing the same workspace.
-    from PySide6.QtCore import QLockFile
-    lock = QLockFile(str(data_dir / "studio.lock"))
+    lock = QLockFile(str(directory / "studio.lock"))
     if not lock.tryLock(100):
-        QMessageBox.information(None, APP_NAME, "Приложение уже открыто для этой папки данных.")
+        QMessageBox.information(None, APP_NAME, "Приложение уже открыто.")
         return 1
-    assets = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "assets"
-    app.setStyleSheet((assets / "styles" / "dark.qss").read_text(encoding="utf-8"))
     try:
-        window = MainWindow(Database(data_dir / "studio.db"), data_dir)
+        app.setStyleSheet((resources() / "styles/dark.qss").read_text(encoding="utf-8"))
+        window = StudioWindow(directory)
         window.show()
         return app.exec()
     except Exception:
-        logging.exception("Application failed")
-        QMessageBox.critical(None, APP_NAME, "Ошибка запуска. Подробности: " + str(data_dir / "studio.log"))
+        logging.exception("Startup failed")
+        QMessageBox.critical(None, APP_NAME, "Ошибка запуска. Журнал: " + str(directory / "studio.log"))
         return 1
     finally:
         lock.unlock()
