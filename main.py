@@ -16,6 +16,11 @@ def main() -> int:
             return 0
         except Exception:
             logging.exception("Packaged self-test failed")
+            import os
+            import traceback
+            if os.environ.get("GITHUB_ACTIONS") == "true" and sys.stdout is not None:
+                detail = traceback.format_exc().replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                print("::error title=Speech and export integration diagnostics::" + detail)
             return 1
     from PySide6.QtCore import QLockFile
     from PySide6.QtWidgets import QApplication, QMessageBox

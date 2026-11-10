@@ -40,7 +40,8 @@ jobs:
           $arguments = @("--self-test", "$pwd/build/exe-selftest", "$pwd/build/speech.flac")
           $process = Start-Process dist/StreamForgeStudio.exe -ArgumentList $arguments -Wait -PassThru
           if ($process.ExitCode -ne 0) {
-            Get-Content "$env:STREAMFORGE_DATA_DIR/studio.log" -ErrorAction SilentlyContinue
+            $details = (Get-Content "$env:STREAMFORGE_DATA_DIR/studio.log" -Raw -ErrorAction SilentlyContinue) -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
+            Write-Output "::error title=Packaged processing diagnostics::$details"
             throw "Packaged processing test failed: $($process.ExitCode)"
           }
           $result = Get-Content build/exe-selftest/result.json | ConvertFrom-Json

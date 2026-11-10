@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 APP_NAME = "StreamForge Studio"
 
 def resources() -> Path:
