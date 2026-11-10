@@ -40,4 +40,5 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/AIClipStudio.exe --title "AI Clip Studio ${{ github.ref_name }} — Stage 1" --notes "Windows 10/11 x64. Stage 1: project library, SQLite, dashboard, file import. AI analysis and clip export are not implemented yet. Unsigned executable. See README for details."
+        run: |
+          gh release create "${{ github.ref_name }}" dist/AIClipStudio.exe --title "AI Clip Studio ${{ github.ref_name }} — Stage 1" --notes "Windows 10/11 x64. Stage 1: project library, SQLite, dashboard, file import. AI analysis and clip export are not implemented yet. Unsigned executable. See README for details."
