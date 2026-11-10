@@ -29,6 +29,8 @@ def download_video(url: str, folder: Path, cancel: threading.Event, progress: Ca
                "socket_timeout": 30, "retries": 2, "overwrites": False}
     with YoutubeDL(options) as downloader:
         info = downloader.extract_info(url, download=True)
+        if not info:
+            raise ValueError("Видео недоступно или отклонено: используйте завершённую запись VOD")
         if info.get("is_live"):
             raise ValueError("Завершите трансляцию и используйте ссылку на запись VOD")
         result = info.get("requested_downloads", [{}])[0].get("filepath") or downloader.prepare_filename(info)

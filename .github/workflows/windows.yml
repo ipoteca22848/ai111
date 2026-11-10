@@ -19,28 +19,25 @@ jobs:
       - name: Bundle official multilingual Whisper model
         run: python tools/prepare_model.py
       - name: Test real processing and GUI
-        run: python -m pytest -q
+        run: python tools/check_tests.py
         env:
           QT_QPA_PLATFORM: offscreen
-      - name: Generate real spoken English integration sample
-        shell: powershell
+      - name: Download upstream speech regression sample (checksum verified)
+        shell: pwsh
         run: |
           New-Item -ItemType Directory -Force build | Out-Null
-          Add-Type -AssemblyName System.Speech
-          $voice = New-Object System.Speech.Synthesis.SpeechSynthesizer
-          $voice.Rate = -1
-          $voice.SetOutputToWaveFile("$pwd/build/speech.wav")
-          $voice.Speak("Hello. This is a real video stream. Welcome to Stream Forge Studio. We turn a long video into short clips.")
-          $voice.Dispose()
+          Invoke-WebRequest https://raw.githubusercontent.com/SYSTRAN/faster-whisper/master/tests/data/jfk.flac -OutFile build/speech.flac
+          $hash = (Get-FileHash build/speech.flac -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "63a4b1e4c1dc655ac70961ffbf518acd249df237e5a0152faae9a4a836949715") { throw "Speech fixture checksum mismatch" }
       - name: Verify speech recognition and end-to-end source pipeline
-        run: python main.py --self-test build/source-selftest build/speech.wav
+        run: python main.py --self-test build/source-selftest build/speech.flac
       - name: Build standalone Windows executable
         run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name StreamForgeStudio --add-data "assets;assets" --collect-all faster_whisper --collect-all ctranslate2 --collect-all tokenizers --collect-all av --collect-all onnxruntime --collect-all imageio_ffmpeg --collect-all yt_dlp --copy-metadata imageio-ffmpeg --copy-metadata yt-dlp --copy-metadata faster-whisper main.py
       - name: Verify FFmpeg, Whisper and export inside the EXE
         shell: pwsh
         run: |
           $env:STREAMFORGE_DATA_DIR = "$env:RUNNER_TEMP/streamforge-selftest-data"
-          $arguments = @("--self-test", "$pwd/build/exe-selftest", "$pwd/build/speech.wav")
+          $arguments = @("--self-test", "$pwd/build/exe-selftest", "$pwd/build/speech.flac")
           $process = Start-Process dist/StreamForgeStudio.exe -ArgumentList $arguments -Wait -PassThru
           if ($process.ExitCode -ne 0) {
             Get-Content "$env:STREAMFORGE_DATA_DIR/studio.log" -ErrorAction SilentlyContinue

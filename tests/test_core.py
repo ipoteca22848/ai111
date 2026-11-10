@@ -51,7 +51,7 @@ def test_ranking_uses_real_peaks_and_rejects_duplicates():
 def test_subtitles_are_relative_and_escape_ass(tmp_path):
     path=tmp_path / "captions.ass"
     make_ass(path, [Segment(10, 12, "Привет", [Word(10, 11, "Привет"), Word(11, 12, "{мир}")])], 10, 13, 720, 1280, 160, "Заголовок")
-    content=path.read_text()
+    content=path.read_text(encoding="utf-8")
     assert "0:00:00.00,0:00:02.00" in content
     assert "\\kf100" in content
     assert "（мир）" in content

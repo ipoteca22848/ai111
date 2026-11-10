@@ -325,6 +325,7 @@ class StudioWindow(QMainWindow):
             self.progress.setValue(100)
             if self.table.rowCount():
                 self.table.selectRow(0)
+                self.preview_selected()
         elif self.job:
             self.status.setText(self.job["status"] + (" · " + self.job.get("error", "")[:200] if self.job.get("error") else ""))
             self.progress.setFormat(self.job["status"])
@@ -368,6 +369,9 @@ class StudioWindow(QMainWindow):
             self.apply_options(self.job["options"])
             self.status.setText(self.job["status"] + (" · " + self.job.get("error", "")[:200] if self.job.get("error") else ""))
             self.set_busy(False)
+            if self.table.rowCount():
+                self.table.selectRow(0)
+                self.preview_selected()
 
     def refresh_job(self):
         if not self.job_id:

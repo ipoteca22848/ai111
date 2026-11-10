@@ -22,7 +22,7 @@ def run(folder: Path, speech_file: Path | None = None) -> None:
     if speech_file:
         segments = transcribe(speech_file, 12, cancel, lambda *_: None, language="en", device="cpu", model=model_path())
         text = " ".join(segment.text for segment in segments).lower()
-        if not any(word in text for word in ("hello", "stream", "video", "studio")):
+        if not any(word in text for word in ("hello", "stream", "video", "studio", "country", "americans")):
             raise AssertionError("Bundled speech model did not recognize the spoken test: " + text)
         speech_ok = True
     database = folder / "selftest.db"
