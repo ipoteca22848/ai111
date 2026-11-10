@@ -127,3 +127,12 @@ def test_ffmpeg_active_cancellation_releases_process(tmp_path):
         timer.cancel()
     # File can be removed after cancellation (also catches Windows process/file-handle leaks).
     output.unlink(missing_ok=True)
+
+
+def test_whisper_audio_decoder_uses_compatible_av(source):
+    from faster_whisper.audio import decode_audio
+    import numpy as np
+    audio = decode_audio(str(source), sampling_rate=16000)
+    assert audio.ndim == 1
+    assert 190000 <= len(audio) <= 194000
+    assert np.isfinite(audio).all()

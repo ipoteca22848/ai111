@@ -5,6 +5,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+env:
+  PYTHONUTF8: "1"
 jobs:
   build:
     runs-on: windows-latest
@@ -37,6 +39,7 @@ jobs:
         shell: pwsh
         run: |
           $env:STREAMFORGE_DATA_DIR = "$env:RUNNER_TEMP/streamforge-selftest-data"
+          $env:HF_HUB_OFFLINE = "1"
           $arguments = @("--self-test", "$pwd/build/exe-selftest", "$pwd/build/speech.flac")
           $process = Start-Process dist/StreamForgeStudio.exe -ArgumentList $arguments -Wait -PassThru
           if ($process.ExitCode -ne 0) {
