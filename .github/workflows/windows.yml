@@ -1,0 +1,43 @@
+name: Windows EXE
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: python -m pip install -r requirements-dev.txt
+      - name: Test
+        run: python -m pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - name: Build standalone Windows executable
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIClipStudio --add-data "assets;assets" main.py
+      - name: Smoke test packaged application
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:AICLIP_DATA_DIR = "$env:RUNNER_TEMP/clip-studio-smoke"
+          $app = Start-Process dist/AIClipStudio.exe -PassThru
+          Start-Sleep -Seconds 20
+          if ($app.HasExited) { throw "Packaged app exited unexpectedly: $($app.ExitCode)" }
+          if (!(Test-Path "$env:AICLIP_DATA_DIR/studio.db")) { Stop-Process -Id $app.Id; throw "Database was not initialized" }
+          Stop-Process -Id $app.Id
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AIClipStudio-Windows
+          path: dist/AIClipStudio.exe
+      - name: Publish tagged build
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/AIClipStudio.exe --title "AI Clip Studio ${{ github.ref_name }} — Stage 1" --notes "Windows 10/11 x64. Stage 1: project library, SQLite, dashboard, file import. AI analysis and clip export are not implemented yet. Unsigned executable. See README for details."
